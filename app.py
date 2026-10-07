@@ -40,6 +40,24 @@ RTSP_PASSWORD = os.getenv("RTSP_PASSWORD", "Vinu@2710")
 DEFAULT_CLASS_NAMES = [f"Class {index}" for index in range(1, CAMERA_COUNT + 1)]
 
 
+def normalize_rtsp_url(raw_url: str) -> str:
+    if not raw_url:
+        return raw_url
+    if not raw_url.lower().startswith("rtsp://"):
+        return raw_url
+
+    scheme, remainder = raw_url.split("://", 1)
+    if "@" in remainder:
+        credentials, host_part = remainder.rsplit("@", 1)
+        if ":" in credentials:
+            username, password = credentials.split(":", 1)
+            credentials = f"{quote(username)}:{quote(password, safe='')}"
+        else:
+            credentials = quote(credentials)
+        return f"{scheme}://{credentials}@{host_part}"
+    return raw_url
+
+
 def generate_rtsp_url(camera_id: int) -> str:
     raw_password = RTSP_PASSWORD
     raw_username = RTSP_USERNAME
@@ -99,28 +117,40 @@ with selected_tab[0]:
         student_name = st.text_input("Student Name")
         department = st.text_input("Department")
         class_name = st.selectbox("Class / Section", options=DEFAULT_CLASS_NAMES, index=0)
-        camera_used = st.selectbox("Camera used for registration", ["Web Camera", "Browser Camera", "Mobile Camera", "RTSP Camera", "Upload Photos"], index=0)
+        camera_used = st.selectbox("Camera used for registration", ["Browser Camera", "Mobile Camera", "USB Camera", "RTSP Camera", "Upload Photos"], index=0)
 
-        st.write("Upload six photos from different angles for the same student.")
-        uploaded_images = []
-        for idx in range(1, 7):
-            uploaded = st.file_uploader(f"Photo {idx} (angle {idx})", type=["png", "jpg", "jpeg"], key=f"photo_{idx}")
-            uploaded_images.append(uploaded)
+        st.write("Capture six photos with different angles in a single window for the same student.")
+        capture_method = st.radio("Photo capture method", ["Browser camera", "Upload files"], index=0)
+
+        captured_images = []
+        if capture_method == "Browser camera":
+            for idx in range(1, 7):
+                image = st.camera_input(f"Capture photo {idx} (angle {idx})", key=f"capture_{idx}")
+                captured_images.append(image)
+        else:
+            for idx in range(1, 7):
+                uploaded = st.file_uploader(f"Upload photo {idx} (angle {idx})", type=["png", "jpg", "jpeg"], key=f"upload_{idx}")
+                captured_images.append(uploaded)
 
         submit_registration = st.form_submit_button("Register Student")
 
     if submit_registration:
-        valid_uploads = [img for img in uploaded_images if img is not None]
+        valid_uploads = [img for img in captured_images if img is not None]
 
         if not student_id or not student_name or not class_name:
             st.warning("Please complete the student details before registering.")
         elif len(valid_uploads) != 6:
-            st.warning("Please upload exactly six photos for registration.")
+            st.warning("Please capture or upload exactly six photos for registration.")
         else:
             try:
                 embeddings = []
                 for image_file in valid_uploads:
-                    image_array = load_image_from_upload(image_file)
+                    if hasattr(image_file, "read"):
+                        image_array = load_image_from_upload(image_file)
+                    else:
+                        image_array = np.asarray(image_file)
+                        if image_array.ndim == 2:
+                            image_array = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
                     embedding = extract_face_embedding(image_array)
                     embeddings.append(embedding)
 
@@ -164,30 +194,11 @@ with selected_tab[1]:
                         st.error(f"Unable to scan {class_name}: {exc}")
     else:
         class_name = st.selectbox("Select class", options=DEFAULT_CLASS_NAMES, index=0)
-        source = st.radio("Capture source", ["Web Camera", "Browser Camera", "RTSP Camera", "Upload Class Photo"])
+        source = st.radio("Capture source", ["Browser Camera", "RTSP Camera", "Upload Class Photo"])
 
         class_image = None
-        if source == "Web Camera":
-            st.info("This checks the local USB camera on the machine running the app. It may require a device index or a desktop browser camera.")
-            camera_attempts = [0, 1, 2, 3, 4, 5]
-            found_frame = None
-            for camera_index in camera_attempts:
-                cap = cv2.VideoCapture(camera_index)
-                if cap.isOpened():
-                    ret, frame = cap.read()
-                    cap.release()
-                    if ret and frame is not None:
-                        found_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                        break
-                    cap.release()
-            if found_frame is not None:
-                class_image = found_frame
-                st.image(class_image, channels="RGB")
-            else:
-                st.warning("No local USB/webcam was detected. Use the browser camera or a mobile camera instead.")
-
         if source == "Browser Camera":
-            st.info("Use the webcam from the browser on this computer or mobile phone. This works even when OpenCV cannot detect the local camera.")
+            st.info("Use the browser camera on the same device running the app. This is the most reliable option for USB webcam and mobile camera access.")
             snapshot = st.camera_input("Capture classroom image from browser camera")
             if snapshot is not None:
                 class_image = np.asarray(snapshot)
@@ -196,17 +207,22 @@ with selected_tab[1]:
                 st.image(class_image, channels="RGB")
 
         if source == "RTSP Camera":
+            st.caption("Important: RTSP from a different network only works if the camera is reachable through VPN, port forwarding, DDNS, or public IP routing. A private IP like 192.168.x.x will not work across networks by itself.")
             rtsp_url = st.text_input(
                 "RTSP URL",
                 value=os.getenv("RTSP_URL", generate_rtsp_url(1)),
-                help="Use the actual classroom CCTV RTSP URL. If the camera is not reachable, check the username/password, IP, and channel number.",
+                help="Use the actual classroom CCTV RTSP URL. If the camera is on another network, it must be exposed through a reachable route.",
             )
+            normalized_rtsp = normalize_rtsp_url(rtsp_url)
+            if normalized_rtsp != rtsp_url:
+                rtsp_url = normalized_rtsp
+                st.session_state["rtsp_url"] = rtsp_url
             if st.button("Load RTSP Frame"):
                 try:
                     class_image = open_rtsp_frame(rtsp_url)
                     st.image(class_image, channels="RGB")
                 except Exception as exc:
-                    st.error(f"RTSP error: {exc}. Verify the camera IP, username, password, and channel number, or use the Browser Camera fallback.")
+                    st.error(f"RTSP error: {exc}. Verify the camera IP, username, password, and channel number, and ensure the device is reachable from this network.")
 
         if source == "Upload Class Photo":
             uploaded_class_photo = st.file_uploader("Upload class photo", type=["png", "jpg", "jpeg"])
