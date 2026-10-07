@@ -2,9 +2,15 @@ import os
 from urllib.parse import quote
 
 import cv2
+import numpy as np
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
+
+try:
+    from PIL import Image
+except ImportError:  # pragma: no cover
+    Image = None
 
 from src.db import (
     create_schema,
@@ -29,14 +35,16 @@ st.set_page_config(page_title="Online Attendance System", layout="wide")
 CAMERA_COUNT = int(os.getenv("CAMERA_COUNT", "16"))
 RTSP_HOST = os.getenv("RTSP_HOST", "192.168.100.127")
 RTSP_USERNAME = os.getenv("RTSP_USERNAME", "admin")
-RTSP_PASSWORD = quote(os.getenv("RTSP_PASSWORD", "Vinu@2710"), safe="")
+RTSP_PASSWORD = os.getenv("RTSP_PASSWORD", "Vinu@2710")
 
 DEFAULT_CLASS_NAMES = [f"Class {index}" for index in range(1, CAMERA_COUNT + 1)]
 
 
 def generate_rtsp_url(camera_id: int) -> str:
+    raw_password = RTSP_PASSWORD
+    raw_username = RTSP_USERNAME
     return (
-        f"rtsp://{RTSP_USERNAME}:{RTSP_PASSWORD}@{RTSP_HOST}:554/cam/realmonitor?"
+        f"rtsp://{raw_username}:{raw_password}@{RTSP_HOST}:554/cam/realmonitor?"
         f"channel={camera_id}&subtype=0"
     )
 
@@ -89,7 +97,9 @@ with selected_tab[0]:
     with st.form("student_registration_form"):
         student_id = st.text_input("Student ID")
         student_name = st.text_input("Student Name")
+        department = st.text_input("Department")
         class_name = st.selectbox("Class / Section", options=DEFAULT_CLASS_NAMES, index=0)
+        camera_used = st.selectbox("Camera used for registration", ["Web Camera", "Browser Camera", "Mobile Camera", "RTSP Camera", "Upload Photos"], index=0)
 
         st.write("Upload six photos from different angles for the same student.")
         uploaded_images = []
@@ -114,7 +124,7 @@ with selected_tab[0]:
                     embedding = extract_face_embedding(image_array)
                     embeddings.append(embedding)
 
-                save_student_registration(student_id, student_name, class_name, embeddings)
+                save_student_registration(student_id, student_name, class_name, department, camera_used, embeddings)
                 st.success(f"Student {student_name} registered successfully.")
             except Exception as exc:
                 st.error(f"Registration failed: {exc}")
@@ -154,29 +164,49 @@ with selected_tab[1]:
                         st.error(f"Unable to scan {class_name}: {exc}")
     else:
         class_name = st.selectbox("Select class", options=DEFAULT_CLASS_NAMES, index=0)
-        source = st.radio("Capture source", ["Web Camera", "RTSP Camera", "Upload Class Photo"])
+        source = st.radio("Capture source", ["Web Camera", "Browser Camera", "RTSP Camera", "Upload Class Photo"])
 
         class_image = None
         if source == "Web Camera":
-            st.info("This uses the local camera attached to the machine running the app.")
-            try:
-                class_image = get_camera_capture()
+            st.info("This checks the local USB camera on the machine running the app. It may require a device index or a desktop browser camera.")
+            camera_attempts = [0, 1, 2, 3, 4, 5]
+            found_frame = None
+            for camera_index in camera_attempts:
+                cap = cv2.VideoCapture(camera_index)
+                if cap.isOpened():
+                    ret, frame = cap.read()
+                    cap.release()
+                    if ret and frame is not None:
+                        found_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                        break
+                    cap.release()
+            if found_frame is not None:
+                class_image = found_frame
                 st.image(class_image, channels="RGB")
-            except Exception as exc:
-                st.warning(f"Web camera not available: {exc}")
+            else:
+                st.warning("No local USB/webcam was detected. Use the browser camera or a mobile camera instead.")
+
+        if source == "Browser Camera":
+            st.info("Use the webcam from the browser on this computer or mobile phone. This works even when OpenCV cannot detect the local camera.")
+            snapshot = st.camera_input("Capture classroom image from browser camera")
+            if snapshot is not None:
+                class_image = np.asarray(snapshot)
+                if class_image.ndim == 2:
+                    class_image = cv2.cvtColor(class_image, cv2.COLOR_GRAY2RGB)
+                st.image(class_image, channels="RGB")
 
         if source == "RTSP Camera":
             rtsp_url = st.text_input(
                 "RTSP URL",
-                value=os.getenv("RTSP_URL", generate_rtsp_url(2)),
-                help="Use the classroom CCTV feed or a local RTSP camera stream.",
+                value=os.getenv("RTSP_URL", generate_rtsp_url(1)),
+                help="Use the actual classroom CCTV RTSP URL. If the camera is not reachable, check the username/password, IP, and channel number.",
             )
             if st.button("Load RTSP Frame"):
                 try:
                     class_image = open_rtsp_frame(rtsp_url)
                     st.image(class_image, channels="RGB")
                 except Exception as exc:
-                    st.error(f"RTSP error: {exc}")
+                    st.error(f"RTSP error: {exc}. Verify the camera IP, username, password, and channel number, or use the Browser Camera fallback.")
 
         if source == "Upload Class Photo":
             uploaded_class_photo = st.file_uploader("Upload class photo", type=["png", "jpg", "jpeg"])

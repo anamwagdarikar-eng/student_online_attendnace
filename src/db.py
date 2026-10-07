@@ -23,6 +23,8 @@ def create_schema():
                     student_id TEXT PRIMARY KEY,
                     student_name TEXT NOT NULL,
                     class_name TEXT NOT NULL,
+                    department TEXT,
+                    camera_used TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 """
@@ -71,18 +73,31 @@ def create_schema():
         )
 
 
-def save_student_registration(student_id: str, student_name: str, class_name: str, embeddings: List[List[float]]):
+def save_student_registration(
+    student_id: str,
+    student_name: str,
+    class_name: str,
+    department: str,
+    camera_used: str,
+    embeddings: List[List[float]],
+):
     with engine.begin() as conn:
         conn.execute(
             text(
                 """
-                INSERT INTO students (student_id, student_name, class_name)
-                VALUES (:student_id, :student_name, :class_name)
+                INSERT INTO students (student_id, student_name, class_name, department, camera_used)
+                VALUES (:student_id, :student_name, :class_name, :department, :camera_used)
                 ON CONFLICT (student_id)
-                DO UPDATE SET student_name = EXCLUDED.student_name, class_name = EXCLUDED.class_name
+                DO UPDATE SET student_name = EXCLUDED.student_name, class_name = EXCLUDED.class_name, department = EXCLUDED.department, camera_used = EXCLUDED.camera_used
                 """
             ),
-            {"student_id": student_id, "student_name": student_name, "class_name": class_name},
+            {
+                "student_id": student_id,
+                "student_name": student_name,
+                "class_name": class_name,
+                "department": department,
+                "camera_used": camera_used,
+            },
         )
 
         conn.execute(
