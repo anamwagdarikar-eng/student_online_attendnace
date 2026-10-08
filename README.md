@@ -39,6 +39,8 @@ A Streamlit-based attendance system with:
 5. Render deployment start command:
    streamlit run app.py --server.port $PORT --server.address 0.0.0.0
 
+   Render runs outside your private LAN and cannot reach a camera at a private address such as `192.168.x.x`. For a local CCTV camera, run the application on a computer connected to that LAN using the command in step 4. A cloud deployment requires a secure network connection from the cloud host to the camera network.
+
 ## Multi-camera classroom setup
 
 - The app checks all 16 classroom RTSP URLs automatically by cycling through the camera IDs.

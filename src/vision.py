@@ -142,14 +142,22 @@ def process_class_image(image_array, student_templates):
     return recognized_results, annotated
 
 
+def open_rtsp_capture(rtsp_url: str):
+    """Open an RTSP stream over TCP using OpenCV's FFmpeg backend."""
+    os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
+    return cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+
+
 def open_rtsp_frame(rtsp_url: str):
     """Open a frame from an RTSP stream for class scanning."""
-    cap = cv2.VideoCapture(rtsp_url)
-    if not cap.isOpened():
-        raise RuntimeError(f"Could not open RTSP stream: {rtsp_url}")
+    cap = open_rtsp_capture(rtsp_url)
+    try:
+        if not cap.isOpened():
+            raise RuntimeError("Could not open RTSP stream. Check network access and camera credentials.")
 
-    ret, frame = cap.read()
-    cap.release()
+        ret, frame = cap.read()
+    finally:
+        cap.release()
     if not ret:
         raise RuntimeError("RTSP stream did not return a valid frame.")
 

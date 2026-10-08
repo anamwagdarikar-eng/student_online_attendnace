@@ -1,5 +1,5 @@
 import os
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 import cv2
 import numpy as np
@@ -24,6 +24,7 @@ from src.vision import (
     extract_face_embedding,
     get_camera_capture,
     load_image_from_upload,
+    open_rtsp_capture,
     open_rtsp_frame,
     process_class_image,
 )
@@ -51,9 +52,9 @@ def normalize_rtsp_url(raw_url: str) -> str:
         credentials, host_part = remainder.rsplit("@", 1)
         if ":" in credentials:
             username, password = credentials.split(":", 1)
-            credentials = f"{quote(username)}:{quote(password, safe='')}"
+            credentials = f"{quote(unquote(username), safe='')}:{quote(unquote(password), safe='')}"
         else:
-            credentials = quote(credentials)
+            credentials = quote(unquote(credentials), safe="")
         return f"{scheme}://{credentials}@{host_part}"
     return raw_url
 
@@ -70,9 +71,10 @@ def generate_rtsp_url(camera_id: int) -> str:
 def auto_detect_rtsp_cameras() -> dict:
     detected = {}
     for camera_id in range(1, CAMERA_COUNT + 1):
-        rtsp_url = generate_rtsp_url(camera_id)
-        cap = cv2.VideoCapture(rtsp_url)
+        rtsp_url = normalize_rtsp_url(generate_rtsp_url(camera_id))
+        cap = open_rtsp_capture(rtsp_url)
         if not cap.isOpened():
+            cap.release()
             detected[camera_id] = {"status": "offline", "url": rtsp_url, "class_name": f"Class {camera_id}"}
             continue
 
