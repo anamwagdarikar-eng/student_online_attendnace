@@ -29,8 +29,12 @@ A Streamlit-based attendance system with:
    copy .env.example .env
    Update `DATABASE_URL` if needed.
 
-4. Run the app locally:
-   streamlit run app.py
+4. Run the app on a machine connected to the camera's LAN:
+   streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+
+   Open `http://localhost:8501` on that machine, or `http://<machine-LAN-IP>:8501` from another device on the same LAN. Allow inbound TCP port 8501 in the machine's firewall if other devices need to access the app.
+
+   Configure `RTSP_HOST`, `RTSP_USERNAME`, and `RTSP_PASSWORD` in a local `.env` file. RTSP connections are made by the Streamlit process, so VLC should be able to open the camera from this same machine.
 
 5. Render deployment start command:
    streamlit run app.py --server.port $PORT --server.address 0.0.0.0
