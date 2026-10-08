@@ -1,0 +1,8 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:1
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8554:8554"
+    environment:
+      MTX_PATHS_CLASSROOM_SOURCE: ${RTSP_SOURCE_URL:?Set RTSP_SOURCE_URL in .env}

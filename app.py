@@ -36,7 +36,8 @@ st.set_page_config(page_title="Online Attendance System", layout="wide")
 CAMERA_COUNT = int(os.getenv("CAMERA_COUNT", "16"))
 RTSP_HOST = os.getenv("RTSP_HOST", "192.168.100.127")
 RTSP_USERNAME = os.getenv("RTSP_USERNAME", "admin")
-RTSP_PASSWORD = os.getenv("RTSP_PASSWORD", "Vinu@2710")
+RTSP_PASSWORD = os.getenv("RTSP_PASSWORD", "")
+RTSP_URL = os.getenv("RTSP_URL")
 
 DEFAULT_CLASS_NAMES = [f"Class {index}" for index in range(1, CAMERA_COUNT + 1)]
 
@@ -71,7 +72,8 @@ def generate_rtsp_url(camera_id: int) -> str:
 def auto_detect_rtsp_cameras() -> dict:
     detected = {}
     for camera_id in range(1, CAMERA_COUNT + 1):
-        rtsp_url = normalize_rtsp_url(generate_rtsp_url(camera_id))
+        camera_url = RTSP_URL if camera_id == 1 and RTSP_URL else generate_rtsp_url(camera_id)
+        rtsp_url = normalize_rtsp_url(camera_url)
         cap = open_rtsp_capture(rtsp_url)
         if not cap.isOpened():
             cap.release()
@@ -212,7 +214,7 @@ with selected_tab[1]:
             st.caption("Important: RTSP from a different network only works if the camera is reachable through VPN, port forwarding, DDNS, or public IP routing. A private IP like 192.168.x.x will not work across networks by itself.")
             rtsp_url = st.text_input(
                 "RTSP URL",
-                value=os.getenv("RTSP_URL", generate_rtsp_url(1)),
+                value=RTSP_URL or generate_rtsp_url(1),
                 help="Use the actual classroom CCTV RTSP URL. If the camera is on another network, it must be exposed through a reachable route.",
             )
             normalized_rtsp = normalize_rtsp_url(rtsp_url)

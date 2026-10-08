@@ -29,7 +29,7 @@ st.set_page_config(page_title="Online Attendance System", layout="wide")
 CAMERA_COUNT = int(os.getenv("CAMERA_COUNT", "16"))
 RTSP_HOST = os.getenv("RTSP_HOST", "192.168.100.127")
 RTSP_USERNAME = os.getenv("RTSP_USERNAME", "admin")
-RTSP_PASSWORD = quote(os.getenv("RTSP_PASSWORD", "Vinu@2710"), safe="")
+RTSP_PASSWORD = quote(os.getenv("RTSP_PASSWORD", ""), safe="")
 
 DEFAULT_CLASS_NAMES = [f"Class {index}" for index in range(1, CAMERA_COUNT + 1)]
 

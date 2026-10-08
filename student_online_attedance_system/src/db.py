@@ -6,10 +6,9 @@ from sqlalchemy import create_engine, text
 
 load_dotenv()
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://neondb_owner:npg_bfBoRKZxTt12@ep-spring-voice-b5jxxpf2-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL must be set in the environment or .env file.")
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 

@@ -36,10 +36,21 @@ A Streamlit-based attendance system with:
 
    Configure `RTSP_HOST`, `RTSP_USERNAME`, and `RTSP_PASSWORD` in a local `.env` file. RTSP connections are made by the Streamlit process, so VLC should be able to open the camera from this same machine.
 
+## MediaMTX RTSP relay
+
+For cameras that OpenCV cannot open directly, run the included MediaMTX relay on the same LAN-connected computer:
+
+1. Copy `.env.example` to `.env` and set `DATABASE_URL` and `RTSP_SOURCE_URL` to your actual values. Percent-encode reserved characters in the camera username or password, such as `@` as `%40`.
+2. Keep `RTSP_URL=rtsp://127.0.0.1:8554/classroom` in `.env`; this is the local MediaMTX stream consumed by the app.
+3. Start the relay with `docker compose up -d mediamtx`.
+4. Start Streamlit using the command in step 4 above. Verify the relay in VLC with `rtsp://127.0.0.1:8554/classroom`.
+
+The Compose service binds port 8554 to localhost only. MediaMTX pulls channel 1 from the camera and restreams it locally over RTSP. The relay and Streamlit must run on the LAN-connected computer; using Render does not give either service access to a private camera IP. To relay additional camera channels, configure a separate MediaMTX path and source for each channel.
+
 5. Render deployment start command:
    streamlit run app.py --server.port $PORT --server.address 0.0.0.0
 
-   Render runs outside your private LAN and cannot reach a camera at a private address such as `192.168.x.x`. For a local CCTV camera, run the application on a computer connected to that LAN using the command in step 4. A cloud deployment requires a secure network connection from the cloud host to the camera network.
+   Render runs outside your private LAN and cannot reach a camera at a private address such as `192.168.x.x`. For a local CCTV camera, run the application and MediaMTX on a computer connected to that LAN. A cloud deployment requires a secure network connection from the cloud host to the camera network.
 
 ## Multi-camera classroom setup
 
